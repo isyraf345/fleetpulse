@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "mode": "historical_replay",
+  "baseline": "same_zone_same_local_hour_previous_week",
+  "train_start": "2024-01-01T00:00:00",
+  "validation_start": "2024-05-01T00:00:00",
+  "test_start": "2024-06-01T00:00:00",
+  "test_end": "2024-07-01T00:00:00",
+  "comparison_cohort": "history_ready_and_recorded_target",
+  "demand_segments": {
+    "basis": "mean_recorded_pickups_per_usable_training_hour",
+    "low_max": 1.0,
+    "medium_max": 10.0
+  },
+  "candidate_selection": "pending_approval",
+  "test_scoring": "held_until_candidates_and_promotion_policy_are_frozen"
+}

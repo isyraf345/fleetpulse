@@ -1,0 +1,51 @@
+{
+  "status": "proposed_pending_user_approval",
+  "gold_run_id": "a1ba4317fca71ee37ecff03601162ee8cc5d6a6078e74e513432144b163b4d3b",
+  "split_plan": "evaluation_plan.json",
+  "predictors": ["zone_id", "hour_of_day", "day_of_week", "lag_1h", "lag_24h", "lag_168h", "mean_previous_24h"],
+  "cohort": "history_ready_and_recorded_target",
+  "candidates": [
+    {
+      "name": "regularized_poisson",
+      "library": "scikit-learn",
+      "estimator": "PoissonRegressor",
+      "preprocessing": "Training-fitted sparse one-hot zone/hour/day; log1p and training-fitted scaling of nonnegative lag/rolling features",
+      "alpha_grid": [0.1, 1.0],
+      "solver": "lbfgs",
+      "max_iter": 500,
+      "tol": 0.000001,
+      "nonconvergence": "reject_candidate_and_report"
+    },
+    {
+      "name": "poisson_boosted_trees",
+      "library": "lightgbm",
+      "objective": "poisson",
+      "categorical_features": ["zone_id", "hour_of_day", "day_of_week"],
+      "num_leaves_grid": [15, 31],
+      "n_estimators": 300,
+      "learning_rate": 0.05,
+      "min_child_samples": 100,
+      "reg_lambda": 1.0,
+      "num_threads": 2,
+      "deterministic": true,
+      "force_col_wise": true,
+      "random_state": 42
+    }
+  ],
+  "selection": {
+    "split": "validation",
+    "minimum_relative_wape_improvement_over_weekly_baseline": 0.05,
+    "maximum_relative_mae_increase_in_any_training_defined_demand_segment": 0.10,
+    "predictions": "all_finite_and_nonnegative",
+    "choose": "lowest_validation_wape_among_qualifying_candidates",
+    "fallback": "weekly_baseline"
+  },
+  "final_test": {
+    "evaluate": "frozen_selected_candidate_and_weekly_baseline_on_identical_rows",
+    "refit_on_validation": false,
+    "apply_same_quality_gates": true,
+    "if_gate_fails": "retain_weekly_baseline_and_report_failure_without_retuning_on_June"
+  },
+  "resource_policy": "Train sequentially, bound numerical library threads to two, and measure runtime and peak memory",
+  "package_versions": "Verify and pin compatible versions before installation after approval"
+}
