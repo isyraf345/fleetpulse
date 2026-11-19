@@ -4,3 +4,6 @@ data/
 .env
 *.pyc
 *.[mM][dD]
+transformations/dbt/target/
+transformations/dbt/logs/
+transformations/dbt/.user.yml

@@ -1,1 +1,4 @@
 duckdb==1.4.3
+dbt-core==1.10.17
+dbt-duckdb==1.10.0
+tzdata==2025.2

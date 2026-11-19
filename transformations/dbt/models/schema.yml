@@ -1,0 +1,25 @@
+version: 2
+models:
+  - name: hourly_pickups
+    description: Recorded accepted pickups, including transition-day counts for audit only.
+    columns:
+      - name: zone_id
+        data_tests: [not_null]
+      - name: hour_local
+        data_tests: [not_null]
+  - name: zone_hours
+    description: Local zone-hour actuals. Null means unavailable; zero means no recorded pickups under the coverage assumption.
+    columns:
+      - name: coverage_status
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [recorded_hour, missing_snapshot, no_citywide_pickups, dst_transition_day]
+  - name: hourly_features
+    description: Historical-replay features only. Join targets separately and filter target coverage during evaluation.
+    columns:
+      - name: forecast_origin_local
+        data_tests: [not_null]
+      - name: history_ready
+        data_tests: [not_null]

@@ -1,0 +1,11 @@
+version: 2
+sources:
+  - name: raw
+    schema: raw
+    tables:
+      - name: pickups
+        description: Checksum-verified narrow Silver records; original local timestamps retained.
+      - name: zones
+        description: Geographic zones from a single pinned official reference snapshot.
+      - name: calendar
+        description: Dense wall-clock grid, with missing months and DST transition days flagged.

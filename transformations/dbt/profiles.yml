@@ -1,0 +1,11 @@
+fleetpulse:
+  target: local
+  outputs:
+    local:
+      type: duckdb
+      path: "{{ env_var('FLEETPULSE_DB_PATH') }}"
+      threads: 1
+      settings:
+        threads: 2
+        memory_limit: 512MB
+        preserve_insertion_order: true

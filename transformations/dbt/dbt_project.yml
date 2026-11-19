@@ -1,0 +1,12 @@
+name: fleetpulse
+version: '1.0.0'
+config-version: 2
+profile: fleetpulse
+model-paths: [models]
+test-paths: [tests]
+models:
+  fleetpulse:
+    +materialized: table
+    +persist_docs:
+      relation: true
+      columns: true
