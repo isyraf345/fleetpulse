@@ -8,6 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(NpgsqlDataSource.Create(builder.Configuration.GetConnectionString("FleetPulse")
     ?? throw new InvalidOperationException("Configure ConnectionStrings__FleetPulse with the read-only database account.")));
 var app = builder.Build();
+app.UseDefaultFiles();
+app.UseStaticFiles();
 app.Use(async (context, next) =>
 {
     try { await next(context); }
@@ -95,6 +97,41 @@ app.MapGet("/api/forecast-runs/{runId}/predictions", async (string runId, HttpRe
     await tx.CommitAsync(ct);
     return Results.Ok(new { run, items, totalCount = count, limit, offset });
 });
+app.MapGet("/api/forecast-runs/{runId}/zones", async (string runId, NpgsqlDataSource db, CancellationToken ct) =>
+{
+    Query.Id(runId);
+    await using var conn = await db.OpenConnectionAsync(ct);
+    await Repository.Run(conn, runId, ct);
+    await using var command = new NpgsqlCommand("""
+        SELECT z.zone_id,z.zone_name,z.borough,count(*)
+        FROM fleetpulse.predictions p JOIN fleetpulse.zones z USING(dataset_id,zone_id)
+        WHERE p.run_id=@id GROUP BY z.zone_id,z.zone_name,z.borough ORDER BY z.zone_name,z.zone_id
+        """, conn);
+    command.Parameters.AddWithValue("id", runId);
+    var items = new List<Zone>();
+    await using var reader = await command.ExecuteReaderAsync(ct);
+    while (await reader.ReadAsync(ct)) items.Add(new(reader.GetInt32(0),reader.GetString(1),reader.GetString(2),reader.GetInt64(3)));
+    return Results.Ok(new { runId, items });
+});
+app.MapGet("/api/forecast-runs/{runId}/summary", async (string runId, NpgsqlDataSource db, CancellationToken ct) =>
+{
+    Query.Id(runId);
+    await using var conn = await db.OpenConnectionAsync(ct);
+    await Repository.Run(conn, runId, ct);
+    await using var command = new NpgsqlCommand("""
+        SELECT count(*),count(actual_pickups),count(DISTINCT zone_id),sum(actual_pickups)::double precision,
+            avg(abs(predicted_pickups-actual_pickups)),avg(abs(baseline_pickups-actual_pickups)),
+            sum(abs(predicted_pickups-actual_pickups))/nullif(sum(actual_pickups),0),
+            sum(abs(baseline_pickups-actual_pickups))/nullif(sum(actual_pickups),0)
+        FROM fleetpulse.predictions WHERE run_id=@id
+        """, conn);
+    command.Parameters.AddWithValue("id", runId);
+    await using var reader = await command.ExecuteReaderAsync(ct);
+    await reader.ReadAsync(ct);
+    double? Value(int i) => reader.IsDBNull(i) ? null : reader.GetDouble(i);
+    return Results.Ok(new { runId, rowCount = reader.GetInt64(0), evaluatedCount = reader.GetInt64(1), zoneCount = reader.GetInt64(2),
+        actualPickups = Value(3), modelMae = Value(4), baselineMae = Value(5), modelWape = Value(6), baselineWape = Value(7) });
+});
 app.Run();
 
 sealed class InputException(string message) : Exception(message);
@@ -134,6 +171,7 @@ record ForecastRun(string RunId,string DatasetId,string ModelId,string ModelName
     string FeaturePolicy,string FreshnessStatus,string ExperimentId,string PredictionArtifactSha256,string BaselineArtifactSha256);
 record Prediction(int ZoneId,string ZoneName,string Borough,string ForecastOriginLocal,string TargetStartLocal,
     string TargetEndLocal,double PredictedPickups,double BaselinePickups,long? ActualPickups);
+record Zone(int ZoneId,string ZoneName,string Borough,long PredictionCount);
 static class Repository
 {
     public static string Local(NpgsqlDataReader reader,int ordinal) => reader.GetDateTime(ordinal).ToString(Query.Format,CultureInfo.InvariantCulture);

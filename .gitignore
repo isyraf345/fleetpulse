@@ -9,3 +9,9 @@ transformations/dbt/logs/
 transformations/dbt/.user.yml
 **/bin/
 **/obj/
+frontend/node_modules/
+frontend/.angular/
+frontend/dist/
+frontend/test-results/
+frontend/playwright-report/
+backend/FleetPulse.Api/wwwroot/

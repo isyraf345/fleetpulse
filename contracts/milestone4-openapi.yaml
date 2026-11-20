@@ -1,13 +1,73 @@
 openapi: 3.0.3
 info:
   title: FleetPulse historical forecast API
-  version: 0.1.0
+  version: 0.2.0
   description: |
     Implemented by backend/FleetPulse.Api. Forecast runs are
     immutable replay batches containing multiple hourly origins. Local event times
     have no UTC offset. Publication timestamps are UTC. The API serves precomputed
     results; it does not train models or run inference in request handlers.
 paths:
+  /api/forecast-runs/{runId}/zones:
+    parameters:
+      - {$ref: '#/components/parameters/RunId'}
+    get:
+      operationId: listRunZones
+      description: Available zones with published predictions, sorted by zone name then zone ID. Dataset lookup zones without predictions are omitted.
+      responses:
+        '200':
+          description: Zone catalog for this immutable run.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runId, items]
+                properties:
+                  runId: {$ref: '#/components/schemas/Hash'}
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [zoneId, zoneName, borough, predictionCount]
+                      properties:
+                        zoneId: {type: integer, minimum: 1}
+                        zoneName: {type: string}
+                        borough: {type: string}
+                        predictionCount: {type: integer, format: int64, minimum: 1}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/forecast-runs/{runId}/summary:
+    parameters:
+      - {$ref: '#/components/parameters/RunId'}
+    get:
+      operationId: getRunSummary
+      description: |
+        Metrics across the entire immutable run, computed from stored predictions.
+        Error metrics and actual totals use only rows with non-null actuals.
+        MAE and actual totals are null if there are no actuals. WAPE is a fraction
+        (not percent) and null when total actuals are zero or unavailable.
+      responses:
+        '200':
+          description: Run-wide evaluation summary; does not depend on prediction-page filters.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [runId, rowCount, evaluatedCount, zoneCount, actualPickups, modelMae, baselineMae, modelWape, baselineWape]
+                properties:
+                  runId: {$ref: '#/components/schemas/Hash'}
+                  rowCount: {type: integer, format: int64, minimum: 1}
+                  evaluatedCount: {type: integer, format: int64, minimum: 0}
+                  zoneCount: {type: integer, format: int64, minimum: 1}
+                  actualPickups: {type: number, format: double, minimum: 0, nullable: true}
+                  modelMae: {type: number, format: double, minimum: 0, nullable: true}
+                  baselineMae: {type: number, format: double, minimum: 0, nullable: true}
+                  modelWape: {type: number, format: double, minimum: 0, nullable: true}
+                  baselineWape: {type: number, format: double, minimum: 0, nullable: true}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
   /health:
     get:
       operationId: getReadiness

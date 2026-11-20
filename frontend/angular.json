@@ -1,0 +1,30 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "cli": {"analytics": false},
+  "projects": {
+    "fleetpulse": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "browser": "src/main.ts",
+            "index": "src/index.html",
+            "tsConfig": "tsconfig.json",
+            "styles": ["src/styles.css"],
+            "outputPath": {"base": "../backend/FleetPulse.Api/wwwroot", "browser": ""},
+            "outputHashing": "all",
+            "budgets": [{"type": "initial", "maximumWarning": "650kB", "maximumError": "1MB"}]
+          }
+        },
+        "serve": {
+          "builder": "@angular/build:dev-server",
+          "options": {"buildTarget": "fleetpulse:build", "proxyConfig": "proxy.conf.json"}
+        }
+      }
+    }
+  }
+}

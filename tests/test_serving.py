@@ -202,6 +202,14 @@ class ServingIntegrationTests(unittest.TestCase):
             self.assertEqual(run['originsStartLocal'],'2024-06-01T00:00:00')
             self.assertTrue(run['publishedAtUtc'].endswith('Z'))
             self.assertTrue(run['isActive'])
+            status,zones,_=get(base,path+'/zones')
+            self.assertEqual(status,200)
+            self.assertEqual(zones['items'],[{'zoneId':1,'zoneName':'Test zone','borough':'Queens','predictionCount':3}])
+            status,summary,_=get(base,path+'/summary')
+            self.assertEqual(status,200)
+            self.assertEqual((summary['rowCount'],summary['evaluatedCount'],summary['zoneCount']),(3,2,1))
+            self.assertEqual((summary['actualPickups'],summary['modelMae'],summary['baselineMae']),(1,2.25,3))
+            self.assertEqual((summary['modelWape'],summary['baselineWape']),(4.5,6))
             status,page,_=get(base,path+'/predictions?limit=1&offset=1')
             self.assertEqual(status,200,page)
             self.assertEqual((status,page['totalCount'],len(page['items'])),(200,3,1))
@@ -223,6 +231,9 @@ class ServingIntegrationTests(unittest.TestCase):
             self.assertEqual(get(base,'/api/forecast-runs/bad')[0],400)
             self.assertEqual(get(base,'/api/forecast-runs/'+'f'*64)[0],404)
             self.assertEqual(get(base,'/api/forecast-runs/'+'f'*64+'/predictions')[0],404)
+            self.assertEqual(get(base,'/api/forecast-runs/'+'f'*64+'/zones')[0],404)
+            self.assertEqual(get(base,'/api/forecast-runs/'+'f'*64+'/summary')[0],404)
+            self.assertEqual(get(base,'/api/forecast-runs/bad/zones')[0],400)
             _,runs,_=get(base,'/api/forecast-runs?limit=1')
             self.assertEqual((runs['totalCount'],runs['activeRunId']),(1,run_id))
             second=fixture('newest')
@@ -230,6 +241,17 @@ class ServingIntegrationTests(unittest.TestCase):
             _,runs,_=get(base,'/api/forecast-runs?limit=1')
             self.assertEqual((runs['totalCount'],runs['items'][0]['runId'],runs['activeRunId']),(2,second.run['run_id'],second.run['run_id']))
             self.assertEqual(get(base,'/api/forecast-runs?limit=1&offset=1')[1]['items'][0]['runId'],run_id)
+
+    def test_summary_zero_actuals_has_no_wape(self):
+        self.payload.rows=[(*row[:-1],0) for row in self.payload.rows]
+        publish(self.payload,self.database)
+        with api(self.database) as base:
+            status,summary,_=get(base,'/api/forecast-runs/'+self.payload.run['run_id']+'/summary')
+            self.assertEqual(status,200)
+            self.assertEqual(summary['actualPickups'],0)
+            self.assertIsNone(summary['modelWape'])
+            self.assertIsNone(summary['baselineWape'])
+            self.assertEqual(summary['modelMae'],3.25)
 
     def test_unavailable_database_is_sanitized(self):
         with api(self.database,free_port()) as base:

@@ -1,0 +1,11 @@
+{
+  "compilerOptions": {
+    "target": "ES2022", "module": "preserve", "moduleResolution": "bundler",
+    "lib": ["ES2022", "dom"], "strict": true, "skipLibCheck": true,
+    "experimentalDecorators": true, "isolatedModules": true,
+    "useDefineForClassFields": false, "importHelpers": true,
+    "outDir": "./dist/out-tsc"
+  },
+  "angularCompilerOptions": {"strictTemplates": true, "strictInjectionParameters": true},
+  "files": ["src/main.ts"]
+}
