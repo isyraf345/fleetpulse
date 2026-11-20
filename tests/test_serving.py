@@ -72,7 +72,7 @@ def api(database, db_port=None):
     dll = ROOT/'backend/FleetPulse.Api/bin/Debug/net10.0/FleetPulse.Api.dll'
     if not dll.exists(): raise RuntimeError('Build the API before running integration tests')
     with tempfile.TemporaryFile() as log:
-        process = subprocess.Popen(['dotnet',str(dll)],cwd=ROOT,env=dotnet_environment(database,port,db_port),
+        process = subprocess.Popen(['dotnet',str(dll)],cwd=ROOT/'backend/FleetPulse.Api',env=dotnet_environment(database,port,db_port),
             stdout=log,stderr=subprocess.STDOUT,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         base = f'http://127.0.0.1:{port}'
         try:
