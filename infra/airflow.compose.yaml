@@ -1,0 +1,56 @@
+services:
+  airflow:
+    profiles: [orchestration]
+    build:
+      context: ..
+      dockerfile: infra/airflow.Dockerfile
+    image: fleetpulse-airflow:local
+    init: true
+    command: [python, /opt/project/orchestration/bootstrap.py]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${FLEETPULSE_AIRFLOW_PORT:-18080}:8080"
+    mem_limit: 2g
+    cpus: 2
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://fleetpulse_airflow:${FLEETPULSE_AIRFLOW_PASSWORD:?Run python -m orchestration.setup first}@postgres:5432/fleetpulse_airflow
+      AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE: '2'
+      AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW: '3'
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__PARALLELISM: '1'
+      AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG: '1'
+      AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG: '1'
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/project/orchestration/dags
+      AIRFLOW__CORE__SIMPLE_AUTH_MANAGER_USERS: fleetpulse:admin
+      AIRFLOW__API__WORKERS: '2'
+      AIRFLOW__WORKERS__EXECUTION_API_TIMEOUT: '60'
+      AIRFLOW__DAG_PROCESSOR__PARSING_PROCESSES: '1'
+      AIRFLOW__DAG_PROCESSOR__REFRESH_INTERVAL: '60'
+      AIRFLOW__API_AUTH__JWT_SECRET: ${FLEETPULSE_AIRFLOW_JWT_SECRET:?Run orchestration.setup first}
+      FLEETPULSE_AIRFLOW_UI_PASSWORD: ${FLEETPULSE_AIRFLOW_UI_PASSWORD:?Run orchestration.setup first}
+      FLEETPULSE_PIPELINE_PYTHON: /opt/fleetpulse-venv/bin/python
+      FLEETPULSE_DB_HOST: postgres
+      FLEETPULSE_DB_PORT: '5432'
+      FLEETPULSE_DB_NAME: fleetpulse
+      FLEETPULSE_WRITER_PASSWORD: ${FLEETPULSE_WRITER_PASSWORD}
+      FLEETPULSE_READER_PASSWORD: ${FLEETPULSE_READER_PASSWORD}
+      FLEETPULSE_RECOVERY_DB: fleetpulse_recovery
+      OMP_NUM_THREADS: '2'
+      OPENBLAS_NUM_THREADS: '2'
+    volumes:
+      - airflow_home:/opt/airflow
+      - ../data/orchestrated:/opt/project/data/orchestrated
+      - ../data/snapshots:/opt/project/data/snapshots:ro
+      - ../data/gold:/opt/project/data/gold:ro
+      - ../data/experiments:/opt/project/data/experiments:ro
+    healthcheck:
+      test: [CMD, python, -c, "import json,urllib.request; h=json.load(urllib.request.urlopen('http://localhost:8080/api/v2/monitor/health',timeout=5)); assert h['metadatabase']['status']=='healthy' and h['scheduler']['status']=='healthy'"]
+      interval: 15s
+      timeout: 10s
+      start_period: 120s
+      retries: 12
+volumes:
+  airflow_home:
