@@ -7,3 +7,5 @@ data/
 transformations/dbt/target/
 transformations/dbt/logs/
 transformations/dbt/.user.yml
+**/bin/
+**/obj/

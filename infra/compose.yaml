@@ -1,0 +1,22 @@
+name: fleetpulse
+services:
+  postgres:
+    image: postgres:17@sha256:b60e90042aa6b8dbecd58e224b3e36114dbf8ad754465264c2476ad58a86e45c
+    environment:
+      POSTGRES_USER: fleetpulse_admin
+      POSTGRES_DB: fleetpulse
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python -m serving.local init first}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    mem_limit: 512m
+    cpus: 2
+    command: [postgres, -c, shared_buffers=64MB, -c, max_connections=25]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U fleetpulse_admin -d fleetpulse"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+volumes:
+  pgdata:

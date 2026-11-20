@@ -1,0 +1,215 @@
+openapi: 3.0.3
+info:
+  title: FleetPulse historical forecast API
+  version: 0.1.0
+  description: |
+    Implemented by backend/FleetPulse.Api. Forecast runs are
+    immutable replay batches containing multiple hourly origins. Local event times
+    have no UTC offset. Publication timestamps are UTC. The API serves precomputed
+    results; it does not train models or run inference in request handlers.
+paths:
+  /health:
+    get:
+      operationId: getReadiness
+      responses:
+        '200':
+          description: API and database are reachable; no forecast data is required.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: {type: string, enum: [ready]}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/forecast-runs:
+    get:
+      operationId: listForecastRuns
+      description: |
+        Ordered by publishedAtUtc descending, then runId descending. An empty
+        database returns 200 with items=[], totalCount=0, activeRunId=null.
+        A response must read its page and active pointer from a consistent snapshot.
+      parameters:
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Offset'}
+      responses:
+        '200':
+          description: Complete published replay batches only.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, totalCount, limit, offset, activeRunId]
+                properties:
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/ForecastRun'}
+                  totalCount: {type: integer, format: int64, minimum: 0}
+                  limit: {type: integer}
+                  offset: {type: integer}
+                  activeRunId:
+                    type: string
+                    nullable: true
+                    pattern: '^[0-9a-f]{64}$'
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/forecast-runs/{runId}:
+    parameters:
+      - {$ref: '#/components/parameters/RunId'}
+    get:
+      operationId: getForecastRun
+      responses:
+        '200':
+          description: A complete historical replay batch with provenance.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ForecastRun'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/forecast-runs/{runId}/predictions:
+    parameters:
+      - {$ref: '#/components/parameters/RunId'}
+    get:
+      operationId: listPredictions
+      description: |
+        Stable order: forecastOriginLocal ascending, then zoneId ascending.
+        Filter local origins in [fromLocal, toLocal). Omitted boundaries default
+        to the run's origin bounds. Reject invalid dates, offsets/Z, non-hour-aligned
+        boundaries, or fromLocal >= toLocal with 400. A valid existing run with
+        no matching zone/time rows returns an empty 200 page. A missing run returns
+        404. totalCount is the number matching the filters before pagination.
+      parameters:
+        - name: zoneId
+          in: query
+          schema: {type: integer, minimum: 1}
+        - name: fromLocal
+          in: query
+          schema: {$ref: '#/components/schemas/LocalTimestamp'}
+        - name: toLocal
+          in: query
+          schema: {$ref: '#/components/schemas/LocalTimestamp'}
+        - {$ref: '#/components/parameters/Limit'}
+        - {$ref: '#/components/parameters/Offset'}
+      responses:
+        '200':
+          description: Paginated predictions with replay context on every page.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [run, items, totalCount, limit, offset]
+                properties:
+                  run: {$ref: '#/components/schemas/ForecastRun'}
+                  items:
+                    type: array
+                    items: {$ref: '#/components/schemas/Prediction'}
+                  totalCount: {type: integer, format: int64, minimum: 0}
+                  limit: {type: integer}
+                  offset: {type: integer}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+components:
+  parameters:
+    RunId:
+      name: runId
+      in: path
+      required: true
+      schema: {$ref: '#/components/schemas/Hash'}
+    Limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 500, default: 100}
+    Offset:
+      name: offset
+      in: query
+      schema: {type: integer, minimum: 0, maximum: 1000000, default: 0}
+  responses:
+    BadRequest:
+      description: Invalid identifier, filter, timestamp, or pagination input.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    NotFound:
+      description: No published run exists with this identifier.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Unavailable:
+      description: Database is unavailable. Do not expose connection strings or SQL.
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    Hash:
+      type: string
+      pattern: '^[0-9a-f]{64}$'
+    LocalTimestamp:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$'
+      description: |
+        Offset-free local wall-clock value; deliberately not RFC3339 date-time.
+        Interpret using the documented calendar assumption, not the browser timezone.
+        Validate calendar correctness separately from this shape pattern.
+      example: '2024-06-01T00:00:00'
+    ForecastRun:
+      type: object
+      required: [runId, datasetId, modelId, modelName, mode, sourceSplit, originsStartLocal,
+        originsEndExclusiveLocal, firstObservedLocal, lastObservedLocal, publishedAtUtc,
+        predictionCount, isActive, eventTimeBasis, calendarAssumption, featurePolicy,
+        freshnessStatus, experimentId, predictionArtifactSha256, baselineArtifactSha256]
+      properties:
+        runId: {$ref: '#/components/schemas/Hash'}
+        datasetId: {$ref: '#/components/schemas/Hash'}
+        modelId: {$ref: '#/components/schemas/Hash'}
+        modelName: {type: string}
+        mode: {type: string, enum: [historical_replay]}
+        sourceSplit: {type: string, enum: [test]}
+        originsStartLocal: {$ref: '#/components/schemas/LocalTimestamp'}
+        originsEndExclusiveLocal: {$ref: '#/components/schemas/LocalTimestamp'}
+        firstObservedLocal: {$ref: '#/components/schemas/LocalTimestamp'}
+        lastObservedLocal: {$ref: '#/components/schemas/LocalTimestamp'}
+        publishedAtUtc:
+          type: string
+          format: date-time
+          description: Serialize UTC with Z; this is publication time, not event freshness.
+        predictionCount: {type: integer, format: int64, minimum: 1}
+        isActive: {type: boolean}
+        eventTimeBasis: {type: string, enum: [local_wall_clock]}
+        calendarAssumption: {type: string, enum: [America/New_York]}
+        featurePolicy: {type: string, enum: [local-replay-v1]}
+        freshnessStatus:
+          type: string
+          enum: [historical_only]
+          description: Never mark historical data current because it was recently published.
+        experimentId: {$ref: '#/components/schemas/Hash'}
+        predictionArtifactSha256: {$ref: '#/components/schemas/Hash'}
+        baselineArtifactSha256: {$ref: '#/components/schemas/Hash'}
+    Prediction:
+      type: object
+      required: [zoneId, zoneName, borough, forecastOriginLocal, targetStartLocal,
+        targetEndLocal, predictedPickups, baselinePickups, actualPickups]
+      properties:
+        zoneId: {type: integer, minimum: 1}
+        zoneName: {type: string}
+        borough: {type: string}
+        forecastOriginLocal: {$ref: '#/components/schemas/LocalTimestamp'}
+        targetStartLocal: {$ref: '#/components/schemas/LocalTimestamp'}
+        targetEndLocal: {$ref: '#/components/schemas/LocalTimestamp'}
+        predictedPickups:
+          type: number
+          format: double
+          minimum: 0
+          description: Finite expected count; preserve precision rather than rounding to an integer.
+        baselinePickups: {type: number, format: double, minimum: 0}
+        actualPickups: {type: integer, format: int64, minimum: 0, nullable: true}
+    Problem:
+      type: object
+      required: [type, title, status, detail, traceId]
+      properties:
+        type: {type: string, format: uri}
+        title: {type: string}
+        status: {type: integer}
+        detail: {type: string}
+        traceId: {type: string}
