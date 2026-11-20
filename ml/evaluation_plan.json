@@ -12,6 +12,6 @@
     "low_max": 1.0,
     "medium_max": 10.0
   },
-  "candidate_selection": "pending_approval",
-  "test_scoring": "held_until_candidates_and_promotion_policy_are_frozen"
+  "candidate_selection": "approved_in_candidate_plan.json",
+  "test_scoring": "only_after_validation_selection_is_frozen"
 }
