@@ -30,7 +30,7 @@ if (-not $SkipInstall) {
 }
 Invoke-Checked $projectPython @('-m','pip','check')
 Invoke-Checked $projectPython @('-m','serving.local','init')
-Invoke-Checked 'docker' @('compose','--env-file','.env','-f','infra/compose.yaml','up','-d','--wait')
+Invoke-Checked 'docker' @('compose','--env-file','.env','-f','infra/compose.yaml','up','-d','--wait','postgres')
 Invoke-Checked $projectPython @('-m','serving.database')
 Invoke-Checked 'npm' @('--prefix','frontend','run','build')
 Invoke-Checked 'dotnet' @('restore','backend/FleetPulse.Api','--locked-mode')

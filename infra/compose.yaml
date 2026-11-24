@@ -1,13 +1,30 @@
 name: fleetpulse
 services:
+  app:
+    build:
+      context: ..
+      dockerfile: infra/app.Dockerfile
+    image: fleetpulse-app:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:5080:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__FleetPulse: 'Host=postgres;Port=5432;Database=fleetpulse;Username=fleetpulse_reader;Password="${FLEETPULSE_READER_PASSWORD:?Run python -m serving.local init first}";Timeout=3;Command Timeout=15;Maximum Pool Size=8;Include Error Detail=false'
+    mem_limit: 512m
+    cpus: 2
   postgres:
+    restart: unless-stopped
     image: postgres:17@sha256:b60e90042aa6b8dbecd58e224b3e36114dbf8ad754465264c2476ad58a86e45c
     environment:
       POSTGRES_USER: fleetpulse_admin
       POSTGRES_DB: fleetpulse
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run python -m serving.local init first}
     ports:
-      - "127.0.0.1:55432:5432"
+      - "127.0.0.1:${FLEETPULSE_DB_PORT:-55432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     mem_limit: 512m
